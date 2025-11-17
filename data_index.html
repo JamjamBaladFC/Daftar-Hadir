@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daftar Hadir Sederhana</title>
+
+  <!-- CDN Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: 'Poppins', Arial, sans-serif;
+      margin: 0;
+      padding: 40px 0;
+      background: url('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1500&q=80') 
+      no-repeat center/cover;
+    }
+    .container {
+      max-width: 480px;
+      margin: auto;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 25px;
+      border-radius: 20px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      text-align: center;
+      backdrop-filter: blur(4px);
+    }
+    h2 {
+      font-size: 28px;
+      margin-bottom: 15px;
+      color: #026902;
+      font-weight: 700;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+    h3 {
+      color: #024b02;
+      margin-top: 25px;
+    }
+    input[type=text] {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 10px;
+      border: 2px solid #1b7f1b;
+      background: #f0fff0;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 14px 25px;
+      background: #1fa71f;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 18px;
+      cursor: pointer;
+      font-weight: 600;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      transition: 0.2s;
+    }
+    button:hover { background: #128312; transform: scale(1.03); }
+    .hasil { margin-top: 20px; font-size: 18px; font-weight: bold; color: #024b02; }
+    #rekapList { list-style: none; padding: 0; margin-top: 10px; }
+    #rekapList li { background: #e8ffe8; padding: 10px; margin: 6px 0; border-radius: 8px; border-left: 5px solid #1fa71f; font-weight: 500; }
+    .small-btn { margin-top:6px; padding:4px 10px; font-size:12px; border-radius:6px; cursor:pointer; }
+    .btn-delete { background:#c40000; color:#fff; border:none; }
+    .admin-bar { background:#f0fff0; padding:8px; border-radius:8px; margin-bottom:10px; color:#064d06; font-weight:600; }
+
+    /* 🌟 Grafik Estetis */
+    #chartHadir {
+      max-width: 250px;
+      margin: 0 auto;
+      display: block;
+      padding-top: 10px;
+    }
+    #infoKuota {
+      margin-top: 15px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #064d06;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Daftar Hadir</h2>
+    <input id="inputNama" type="text" placeholder="Masukkan Nama" maxlength="50" />
+    <input id="inputKoordinator" type="text" placeholder="Masukkan Koordinator" maxlength="50" />
+    <button onclick="tandaiHadir()">Hadir</button>
+
+    <div class="hasil" id="hasil"></div>
+
+    <h3>Rekap Kehadiran</h3>
+
+    <!-- 🎯 Grafik Estetis -->
+    <canvas id="chartHadir"></canvas>
+    <div id="infoKuota"></div>
+
+    <button id="adminLoginBtn" onclick="adminLogin()" 
+    style="background:#064d06; margin-top:15px;">Login Admin</button>
+
+    <div id="adminTools" class="admin-bar" style="display:none;">
+      MODE ADMIN AKTIF – Anda bisa menghapus data
+    </div>
+
+    <ul id="rekapList" style="text-align:left; max-height:300px; overflow-y:auto;"></ul>
+  </div>
+
+<script>
+  let rekap = JSON.parse(localStorage.getItem("rekap") || "[]");
+  const ADMIN_PASS = "admin123";
+  let adminMode = false;
+
+  function escapeHtml(text){
+    return String(text).replace(/[&<>"]/g, function(tag){
+      const chars = { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" };
+      return chars[tag] || tag;
+    });
+  }
+
+  /* ------------------ RENDER REKAP ------------------ */
+  function updateRekap(){
+    const list = document.getElementById("rekapList");
+    list.innerHTML = "";
+    rekap.forEach((item, i)=>{
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <div id="view-${i}">
+          <b>${i+1}.</b> ${escapeHtml(item.nama)}
+          <div style="font-size:14px;">Koordinator: ${escapeHtml(item.koordinator)}</div>
+          <div style="font-size:12px;">${item.tanggal} - ${item.jam}</div>
+          <button class="small-btn" onclick="startEdit(${i})">Edit</button>
+          <button class="small-btn btn-delete" id="del-${i}" onclick="adminDelete(${i})">Hapus</button>
+        </div>
+
+        <div id="edit-${i}" style="display:none;">
+          <input id="editNama-${i}" value="${escapeHtml(item.nama)}">
+          <input id="editKoor-${i}" value="${escapeHtml(item.koordinator)}">
+          <button class="small-btn" onclick="saveEdit(${i})">Save</button>
+          <button class="small-btn" onclick="cancelEdit(${i})">Cancel</button>
+        </div>
+      `;
+      list.appendChild(li);
+    });
+
+    localStorage.setItem("rekap", JSON.stringify(rekap));
+
+    if(adminMode){
+      document.getElementById("adminTools").style.display = "block";
+      document.querySelectorAll('[id^="del-"]').forEach(b=>b.style.display="inline-block");
+    } else {
+      document.getElementById("adminTools").style.display = "none";
+      document.querySelectorAll('[id^="del-"]').forEach(b=>b.style.display="none");
+    }
+
+    renderChart();
+  }
+
+  /* ------------------ EDIT ------------------ */
+  function startEdit(i){
+    document.getElementById(`view-${i}`).style.display="none";
+    document.getElementById(`edit-${i}`).style.display="block";
+  }
+  function saveEdit(i){
+    rekap[i].nama = document.getElementById(`editNama-${i}`).value;
+    rekap[i].koordinator = document.getElementById(`editKoor-${i}`).value;
+    updateRekap();
+  }
+  function cancelEdit(i){
+    document.getElementById(`view-${i}`).style.display="block";
+    document.getElementById(`edit-${i}`).style.display="none";
+  }
+
+  /* ------------------ ADMIN ------------------ */
+  function adminLogin(){
+    const pass = prompt("Masukkan password admin:");
+    if(pass === ADMIN_PASS){
+      adminMode = true;
+      alert("Login berhasil");
+      updateRekap();
+    } else {
+      alert("Password salah!");
+    }
+  }
+
+  function adminDelete(i){
+    if(!adminMode) return alert("Belum login admin!");
+    if(confirm("Yakin hapus?")){
+      rekap.splice(i,1);
+      updateRekap();
+    }
+  }
+
+  /* ------------------ TAMBAH HADIR ------------------ */
+  function tandaiHadir(){
+    const nama = document.getElementById("inputNama").value.trim();
+    const koor = document.getElementById("inputKoordinator").value.trim();
+    const now = new Date();
+
+    if(nama === "") return alert("Nama wajib diisi!");
+    if(rekap.length >= 50) return alert("Kuota penuh! Maksimal 50 orang.");
+
+    rekap.push({
+      nama,
+      koordinator: koor || "(kosong)",
+      tanggal: now.toLocaleDateString("id-ID"),
+      jam: now.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})
+    });
+
+    updateRekap();
+    document.getElementById("inputNama").value="";
+  }
+
+  /* ------------------ GRAFIK ESTETIS ------------------ */
+  let chart = null;
+
+  function getColor(total){
+    if (total <= 20) return "#1fc75b";  // hijau
+    if (total <= 35) return "#ffd33d";  // kuning
+    if (total <= 45) return "#ff9432";  // oranye
+    return "#ff3b3b";                   // merah penuh
+  }
+
+  function renderChart(){
+    const total = rekap.length;
+    const sisa = 50 - total;
+
+    document.getElementById("infoKuota").innerHTML =
+      `Hadir <b>${total}</b> dari <b>50</b> — Sisa kuota: <b>${sisa}</b>`;
+
+    const ctx = document.getElementById("chartHadir");
+
+    if(chart) chart.destroy();
+
+    chart = new Chart(ctx,{
+      type:"doughnut",
+      data:{
+        labels:["Hadir","Sisa"],
+        datasets:[{
+          data:[total, 50-total],
+          backgroundColor:[getColor(total), "#e8e8e8"],
+          borderWidth:0,
+          hoverOffset:8
+        }]
+      },
+      options:{
+        plugins:{ legend:{ display:false }},
+        cutout:"72%",
+      }
+    });
+  }
+
+  updateRekap();
+</script>
+
+</body>
+</html>

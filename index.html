@@ -76,6 +76,10 @@
       border-left: 5px solid #1fa71f;
       font-weight: 500;
     }
+    .small-btn {
+      margin-top:6px; padding:4px 10px; font-size:12px; border-radius:6px; cursor:pointer;
+    }
+    .btn-delete { background:#c40000; color:#fff; border:none; }
   </style>
 </head>
 <body>
@@ -83,18 +87,18 @@
     <h2>Daftar Hadir</h2>
     <input id="inputNama" type="text" placeholder="Masukkan Nama" maxlength="50" style="width:100%; max-width:300px; margin:auto; display:block;" />
     <input id="inputKoordinator" type="text" placeholder="Masukkan Koordinator" maxlength="50" style="width:100%; max-width:300px; margin:auto; margin-top:15px; display:block;" />
-    <button onclick="tandaiHadir()" style="width:100%; max-width:300px; margin:auto; display:block; margin-top:15px;">Hadir</button>
+    <button id="btnHadir" onclick="tandaiHadir()" style="width:100%; max-width:300px; margin:auto; display:block; margin-top:15px;">Hadir</button>
     <div class="hasil" id="hasil"></div>
     <h3>Rekap Kehadiran</h3>
     <ul id="rekapList" style="text-align:left; max-height:300px; overflow-y:auto; font-size:16px;"></ul>
   </div>
 
   <script>
+    // --- Storage & reset logic ---
     let rekap = JSON.parse(localStorage.getItem('rekap')) || [];
     const lastReset = localStorage.getItem('lastReset');
     const nowDay = new Date().toISOString().slice(0,10);
 
-    // reset otomatis setelah 3 hari
     if (!lastReset) {
       localStorage.setItem('lastReset', nowDay);
     } else {
@@ -106,42 +110,111 @@
       }
     }
 
-    updateRekap();
+    const ADMIN_PASS = "admin123"; // ganti jika diperlukan
 
-    function tandaiHadir() {
-      const nama = document.getElementById('inputNama').value || "(Nama kosong)";
-      const koordinator = document.getElementById('inputKoordinator').value || "(Koordinator kosong)";
-      const now = new Date();
-      const tanggal = now.toLocaleDateString('id-ID');
-      const jam = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-
-      document.getElementById('hasil').innerHTML = `<div style="margin-top:10px;">
-        <div style='font-size:20px; color:#026902; font-weight:600;'>${nama}</div>
-        <div style='margin-top:6px;'>Tanggal: <b>${tanggal}</b></div>
-        <div>Jam: <b>${jam}</b></div>
-        <div style='margin-top:6px; font-size:14px; color:#024b02;'>Koordinator: ${koordinator}</div>
-      </div>`;
-
-      if (rekap.length < 100) {
-        rekap.push({ nama, koordinator, tanggal, jam });
-        updateRekap();
-        localStorage.setItem('rekap', JSON.stringify(rekap));
-      } else {
-        alert("Batas maksimal 100 peserta telah tercapai!");
-      }
-    }
-
+    // --- Render list ---
     function updateRekap() {
       const list = document.getElementById('rekapList');
       list.innerHTML = "";
       rekap.forEach((item, index) => {
         const li = document.createElement('li');
-        li.innerHTML = `<b>${index + 1}.</b> ${item.nama}<br>
-        <span style='font-size:14px;'>Koordinator: ${item.koordinator}</span><br>
-        <span style='font-size:14px;'>Tanggal: ${item.tanggal} | Jam: ${item.jam}</span>`;
+        li.innerHTML = `
+          <div id="view-${index}">
+            <div><b>${index + 1}.</b> ${escapeHtml(item.nama)}</div>
+            <div style='font-size:14px; color:#064d06;'>Koordinator: ${escapeHtml(item.koordinator)}</div>
+            <div style='font-size:13px; color:#2a7a2a;'>Tanggal: ${item.tanggal} | Jam: ${item.jam}</div>
+            <button class="small-btn" onclick="startEdit(${index})">Edit</button>
+          </div>
+
+          <div id="edit-${index}" style="display:none;">
+            <input id="editNama-${index}" type="text" value="${escapeHtml(item.nama)}" style="width:90%; margin:5px 0;">
+            <input id="editKoor-${index}" type="text" value="${escapeHtml(item.koordinator)}" style="width:90%; margin:5px 0;">
+            <button class="small-btn" onclick="saveEdit(${index})">Save</button>
+            <button class="small-btn" onclick="cancelEdit(${index})">Cancel</button>
+          </div>
+        `;
         list.appendChild(li);
       });
+      localStorage.setItem('rekap', JSON.stringify(rekap));
     }
+
+    function startEdit(i) {
+      document.getElementById(`view-${i}`).style.display = 'none';
+      document.getElementById(`edit-${i}`).style.display = 'block';
+    }
+
+    function saveEdit(i) {
+      const newNama = document.getElementById(`editNama-${i}`).value.trim();
+      const newKoor = document.getElementById(`editKoor-${i}`).value.trim();
+      if (newNama) rekap[i].nama = newNama;
+      if (newKoor) rekap[i].koordinator = newKoor;
+      updateRekap();
+    }
+
+    function cancelEdit(i) {
+      document.getElementById(`view-${i}`).style.display = 'block';
+      document.getElementById(`edit-${i}`).style.display = 'none';
+    }
+
+    // --- Helpers ---
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // --- Actions ---
+    function tandaiHadir() {
+      const nama = document.getElementById('inputNama').value.trim() || "(Nama kosong)";
+      const koordinator = document.getElementById('inputKoordinator').value.trim() || "(Koordinator kosong)";
+      const now = new Date();
+      const tanggal = now.toLocaleDateString('id-ID');
+      const jam = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+      document.getElementById('hasil').innerHTML = `<div style="margin-top:10px;">
+        <div style='font-size:20px; color:#026902; font-weight:600;'>${escapeHtml(nama)}</div>
+        <div style='margin-top:6px;'>Tanggal: <b>${tanggal}</b></div>
+        <div>Jam: <b>${jam}</b></div>
+        <div style='margin-top:6px; font-size:14px; color:#024b02;'>Koordinator: ${escapeHtml(koordinator)}</div>
+      </div>`;
+
+      if (rekap.length < 100) {
+        rekap.push({ nama, koordinator, tanggal, jam });
+        updateRekap();
+      } else {
+        alert("Batas maksimal 100 peserta telah tercapai!");
+      }
+
+      // bersihkan input setelah submit (opsional)
+      document.getElementById('inputNama').value = '';
+    }
+
+    function editItem(i) {
+      const namaBaru = prompt("Edit Nama:", rekap[i].nama);
+      if (namaBaru === null) return; // cancel
+      const koorBaru = prompt("Edit Koordinator:", rekap[i].koordinator);
+      if (koorBaru === null) return;
+
+      rekap[i].nama = namaBaru.trim() || rekap[i].nama;
+      rekap[i].koordinator = koorBaru.trim() || rekap[i].koordinator;
+      updateRekap();
+    }
+
+    function deleteItem(i) {
+      const pass = prompt("Masukkan password admin untuk menghapus:");
+      if (pass !== ADMIN_PASS) {
+        alert("Password salah! Tidak bisa menghapus.");
+        return;
+      }
+      rekap.splice(i, 1);
+      updateRekap();
+    }
+
+    // inisialisasi render
+    updateRekap();
   </script>
 </body>
 </html>

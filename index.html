@@ -32,7 +32,7 @@
       color: #024b02;
       margin-top: 25px;
     }
-    input {
+    input[type=text] {
       width: 100%;
       padding: 12px;
       margin: 10px 0;
@@ -40,6 +40,7 @@
       border: 2px solid #1b7f1b;
       background: #f0fff0;
       font-size: 16px;
+      box-sizing: border-box;
     }
     button {
       padding: 14px 25px;
@@ -53,33 +54,13 @@
       box-shadow: 0 4px 10px rgba(0,0,0,0.2);
       transition: 0.2s;
     }
-    button:hover {
-      background: #128312;
-      transform: scale(1.03);
-    }
-    .hasil {
-      margin-top: 20px;
-      font-size: 18px;
-      font-weight: bold;
-      color: #024b02;
-    }
-    #rekapList {
-      list-style: none;
-      padding: 0;
-      margin-top: 10px;
-    }
-    #rekapList li {
-      background: #e8ffe8;
-      padding: 10px;
-      margin: 6px 0;
-      border-radius: 8px;
-      border-left: 5px solid #1fa71f;
-      font-weight: 500;
-    }
-    .small-btn {
-      margin-top:6px; padding:4px 10px; font-size:12px; border-radius:6px; cursor:pointer;
-    }
+    button:hover { background: #128312; transform: scale(1.03); }
+    .hasil { margin-top: 20px; font-size: 18px; font-weight: bold; color: #024b02; }
+    #rekapList { list-style: none; padding: 0; margin-top: 10px; }
+    #rekapList li { background: #e8ffe8; padding: 10px; margin: 6px 0; border-radius: 8px; border-left: 5px solid #1fa71f; font-weight: 500; }
+    .small-btn { margin-top:6px; padding:4px 10px; font-size:12px; border-radius:6px; cursor:pointer; }
     .btn-delete { background:#c40000; color:#fff; border:none; }
+    .admin-bar { background:#f0fff0; padding:8px; border-radius:8px; margin-bottom:10px; color:#064d06; font-weight:600; }
   </style>
 </head>
 <body>
@@ -88,8 +69,13 @@
     <input id="inputNama" type="text" placeholder="Masukkan Nama" maxlength="50" style="width:100%; max-width:300px; margin:auto; display:block;" />
     <input id="inputKoordinator" type="text" placeholder="Masukkan Koordinator" maxlength="50" style="width:100%; max-width:300px; margin:auto; margin-top:15px; display:block;" />
     <button id="btnHadir" onclick="tandaiHadir()" style="width:100%; max-width:300px; margin:auto; display:block; margin-top:15px;">Hadir</button>
+
     <div class="hasil" id="hasil"></div>
+
     <h3>Rekap Kehadiran</h3>
+    <button id="adminLoginBtn" onclick="adminLogin()" style="background:#064d06; max-width:200px; width:100%; margin-bottom:12px;">Login Admin</button>
+    <div id="adminTools" class="admin-bar" style="display:none;">MODE ADMIN AKTIF – Anda bisa menghapus data</div>
+
     <ul id="rekapList" style="text-align:left; max-height:300px; overflow-y:auto; font-size:16px;"></ul>
   </div>
 
@@ -111,6 +97,17 @@
     }
 
     const ADMIN_PASS = "admin123"; // ganti jika diperlukan
+    let adminMode = false;
+
+    // --- Helpers ---
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
 
     // --- Render list ---
     function updateRekap() {
@@ -124,6 +121,7 @@
             <div style='font-size:14px; color:#064d06;'>Koordinator: ${escapeHtml(item.koordinator)}</div>
             <div style='font-size:13px; color:#2a7a2a;'>Tanggal: ${item.tanggal} | Jam: ${item.jam}</div>
             <button class="small-btn" onclick="startEdit(${index})">Edit</button>
+            <button class="small-btn btn-delete" id="del-${index}" onclick="adminDelete(${index})""display:none; margin-left:5px;">Hapus</button>
           </div>
 
           <div id="edit-${index}" style="display:none;">
@@ -135,12 +133,27 @@
         `;
         list.appendChild(li);
       });
+
+      // simpan ke localStorage
       localStorage.setItem('rekap', JSON.stringify(rekap));
+
+      // jika admin mode, tampilkan tombol hapus
+      if (adminMode) {
+        document.getElementById('adminTools').style.display = 'block';
+        Array.from(document.querySelectorAll('[id^="del-"]')).forEach(btn => btn.style.display = 'inline-block');
+      } else {
+        document.getElementById('adminTools').style.display = 'none';
+        Array.from(document.querySelectorAll('[id^="del-"]')).forEach(btn => btn.style.display = 'none');
+      }
     }
 
+    // --- Edit flow (inline) ---
     function startEdit(i) {
-      document.getElementById(`view-${i}`).style.display = 'none';
-      document.getElementById(`edit-${i}`).style.display = 'block';
+      const view = document.getElementById(`view-${i}`);
+      const edit = document.getElementById(`edit-${i}`);
+      if (!view || !edit) return;
+      view.style.display = 'none';
+      edit.style.display = 'block';
     }
 
     function saveEdit(i) {
@@ -152,18 +165,31 @@
     }
 
     function cancelEdit(i) {
-      document.getElementById(`view-${i}`).style.display = 'block';
-      document.getElementById(`edit-${i}`).style.display = 'none';
+      const view = document.getElementById(`view-${i}`);
+      const edit = document.getElementById(`edit-${i}`);
+      if (!view || !edit) return;
+      view.style.display = 'block';
+      edit.style.display = 'none';
     }
 
-    // --- Helpers ---
-    function escapeHtml(text) {
-      return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    // --- Admin actions ---
+    function adminLogin() {
+      const pass = prompt('Masukkan password admin:');
+      if (pass === ADMIN_PASS) {
+        adminMode = true;
+        alert('Admin login berhasil');
+        updateRekap();
+      } else {
+        alert('Password salah!');
+      }
+    }
+
+    function adminDelete(i) {
+      if (!adminMode) return alert('Anda belum login sebagai admin!');
+      if (confirm('Yakin ingin menghapus data ini?')) {
+        rekap.splice(i, 1);
+        updateRekap();
+      }
     }
 
     // --- Actions ---
@@ -190,27 +216,6 @@
 
       // bersihkan input setelah submit (opsional)
       document.getElementById('inputNama').value = '';
-    }
-
-    function editItem(i) {
-      const namaBaru = prompt("Edit Nama:", rekap[i].nama);
-      if (namaBaru === null) return; // cancel
-      const koorBaru = prompt("Edit Koordinator:", rekap[i].koordinator);
-      if (koorBaru === null) return;
-
-      rekap[i].nama = namaBaru.trim() || rekap[i].nama;
-      rekap[i].koordinator = koorBaru.trim() || rekap[i].koordinator;
-      updateRekap();
-    }
-
-    function deleteItem(i) {
-      const pass = prompt("Masukkan password admin untuk menghapus:");
-      if (pass !== ADMIN_PASS) {
-        alert("Password salah! Tidak bisa menghapus.");
-        return;
-      }
-      rekap.splice(i, 1);
-      updateRekap();
     }
 
     // inisialisasi render

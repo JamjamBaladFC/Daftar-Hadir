@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daftar Hadir Sederhana</title>
+  <style>
+    body {
+      font-family: 'Poppins', Arial, sans-serif;
+      margin: 0;
+      padding: 40px 0;
+      background: url('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1500&q=80') no-repeat center/cover;
+    }
+    .container {
+      max-width: 480px;
+      margin: auto;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 25px;
+      border-radius: 20px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      text-align: center;
+      backdrop-filter: blur(4px);
+    }
+    h2 {
+      font-size: 28px;
+      margin-bottom: 15px;
+      color: #026902;
+      font-weight: 700;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+    h3 {
+      color: #024b02;
+      margin-top: 25px;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 10px;
+      border: 2px solid #1b7f1b;
+      background: #f0fff0;
+      font-size: 16px;
+    }
+    button {
+      padding: 14px 25px;
+      background: #1fa71f;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 18px;
+      cursor: pointer;
+      font-weight: 600;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      transition: 0.2s;
+    }
+    button:hover {
+      background: #128312;
+      transform: scale(1.03);
+    }
+    .hasil {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #024b02;
+    }
+    #rekapList {
+      list-style: none;
+      padding: 0;
+      margin-top: 10px;
+    }
+    #rekapList li {
+      background: #e8ffe8;
+      padding: 10px;
+      margin: 6px 0;
+      border-radius: 8px;
+      border-left: 5px solid #1fa71f;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Daftar Hadir</h2>
+    <input id="inputNama" type="text" placeholder="Masukkan Nama" maxlength="50" style="width:100%; max-width:300px; margin:auto; display:block;" />
+    <input id="inputKoordinator" type="text" placeholder="Masukkan Koordinator" maxlength="50" style="width:100%; max-width:300px; margin:auto; margin-top:15px; display:block;" />
+    <button onclick="tandaiHadir()" style="width:100%; max-width:300px; margin:auto; display:block; margin-top:15px;">Hadir</button>
+    <div class="hasil" id="hasil"></div>
+    <h3>Rekap Kehadiran</h3>
+    <ul id="rekapList" style="text-align:left; max-height:300px; overflow-y:auto; font-size:16px;"></ul>
+  </div>
+
+  <script>
+    let rekap = [];
+
+    function tandaiHadir() {
+      const nama = document.getElementById('inputNama').value || "(Nama kosong)";
+      const koordinator = document.getElementById('inputKoordinator').value || "(Koordinator kosong)";
+      const now = new Date();
+      const tanggal = now.toLocaleDateString('id-ID');
+      const jam = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+      document.getElementById('hasil').innerHTML = `<div style="margin-top:10px;">
+        <div style='font-size:20px; color:#026902; font-weight:600;'>${nama}</div>
+        <div style='margin-top:6px;'>Tanggal: <b>${tanggal}</b></div>
+        <div>Jam: <b>${jam}</b></div>
+        <div style='margin-top:6px; font-size:14px; color:#024b02;'>Koordinator: ${koordinator}</div>
+      </div>`;
+
+      if (rekap.length < 100) {
+        rekap.push({ nama, koordinator, tanggal, jam });
+        updateRekap();
+      } else {
+        alert("Batas maksimal 100 peserta telah tercapai!");
+      }
+    }
+
+    function updateRekap() {
+      const list = document.getElementById('rekapList');
+      list.innerHTML = "";
+      rekap.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<b>${index + 1}.</b> ${item.nama}<br>
+        <span style='font-size:14px;'>Koordinator: ${item.koordinator}</span><br>
+        <span style='font-size:14px;'>Tanggal: ${item.tanggal} | Jam: ${item.jam}</span>`;
+        list.appendChild(li);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -73,6 +73,7 @@
     <div class="hasil" id="hasil"></div>
 
     <h3>Rekap Kehadiran</h3>
+    <canvas id="chartHadir" style="margin-top:15px; max-width:350px; width:100%;"></canvas>
     <button id="adminLoginBtn" onclick="adminLogin()" style="background:#064d06; max-width:200px; width:100%; margin-bottom:12px;">Login Admin</button>
     <div id="adminTools" class="admin-bar" style="display:none;">MODE ADMIN AKTIF – Anda bisa menghapus data</div>
 
@@ -162,6 +163,7 @@
       if (newNama) rekap[i].nama = newNama;
       if (newKoor) rekap[i].koordinator = newKoor;
       updateRekap();
+    renderChart();
     }
 
     function cancelEdit(i) {
@@ -216,6 +218,26 @@
 
       // bersihkan input setelah submit (opsional)
       document.getElementById('inputNama').value = '';
+    }
+
+    // ---- Grafik Kehadiran ----
+    let chartInstance = null;
+    function renderChart(){
+      const ctx = document.getElementById('chartHadir');
+      if(!ctx) return;
+      const total = rekap.length;
+      if(chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Hadir'],
+          datasets: [{ data: [total], backgroundColor: ['#1fa71f'] }]
+        },
+        options: {
+          plugins:{ legend:{ display:false }},
+          cutout:'70%'
+        }
+      });
     }
 
     // inisialisasi render

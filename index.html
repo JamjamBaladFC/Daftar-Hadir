@@ -90,7 +90,23 @@
   </div>
 
   <script>
-    let rekap = [];
+    let rekap = JSON.parse(localStorage.getItem('rekap')) || [];
+    const lastReset = localStorage.getItem('lastReset');
+    const nowDay = new Date().toISOString().slice(0,10);
+
+    // reset otomatis setelah 3 hari
+    if (!lastReset) {
+      localStorage.setItem('lastReset', nowDay);
+    } else {
+      const diff = (new Date(nowDay) - new Date(lastReset)) / (1000*60*60*24);
+      if (diff >= 3) {
+        rekap = [];
+        localStorage.setItem('rekap', JSON.stringify(rekap));
+        localStorage.setItem('lastReset', nowDay);
+      }
+    }
+
+    updateRekap();
 
     function tandaiHadir() {
       const nama = document.getElementById('inputNama').value || "(Nama kosong)";
@@ -109,6 +125,7 @@
       if (rekap.length < 100) {
         rekap.push({ nama, koordinator, tanggal, jam });
         updateRekap();
+        localStorage.setItem('rekap', JSON.stringify(rekap));
       } else {
         alert("Batas maksimal 100 peserta telah tercapai!");
       }

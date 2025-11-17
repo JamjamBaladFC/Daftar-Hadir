@@ -4,12 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Daftar Hadir Sederhana</title>
+
+  <!-- CDN Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body {
       font-family: 'Poppins', Arial, sans-serif;
       margin: 0;
       padding: 40px 0;
-      background: url('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1500&q=80') no-repeat center/cover;
+      background: url('https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1500&q=80') 
+      no-repeat center/cover;
     }
     .container {
       max-width: 480px;
@@ -61,187 +66,193 @@
     .small-btn { margin-top:6px; padding:4px 10px; font-size:12px; border-radius:6px; cursor:pointer; }
     .btn-delete { background:#c40000; color:#fff; border:none; }
     .admin-bar { background:#f0fff0; padding:8px; border-radius:8px; margin-bottom:10px; color:#064d06; font-weight:600; }
+
+    /* 🌟 Grafik Estetis */
+    #chartHadir {
+      max-width: 250px;
+      margin: 0 auto;
+      display: block;
+      padding-top: 10px;
+    }
+    #infoKuota {
+      margin-top: 15px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #064d06;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>Daftar Hadir</h2>
-    <input id="inputNama" type="text" placeholder="Masukkan Nama" maxlength="50" style="width:100%; max-width:300px; margin:auto; display:block;" />
-    <input id="inputKoordinator" type="text" placeholder="Masukkan Koordinator" maxlength="50" style="width:100%; max-width:300px; margin:auto; margin-top:15px; display:block;" />
-    <button id="btnHadir" onclick="tandaiHadir()" style="width:100%; max-width:300px; margin:auto; display:block; margin-top:15px;">Hadir</button>
+    <input id="inputNama" type="text" placeholder="Masukkan Nama" maxlength="50" />
+    <input id="inputKoordinator" type="text" placeholder="Masukkan Koordinator" maxlength="50" />
+    <button onclick="tandaiHadir()">Hadir</button>
 
     <div class="hasil" id="hasil"></div>
 
     <h3>Rekap Kehadiran</h3>
-    <canvas id="chartHadir" style="margin-top:15px; max-width:350px; width:100%;"></canvas>
-    <button id="adminLoginBtn" onclick="adminLogin()" style="background:#064d06; max-width:200px; width:100%; margin-bottom:12px;">Login Admin</button>
-    <div id="adminTools" class="admin-bar" style="display:none;">MODE ADMIN AKTIF – Anda bisa menghapus data</div>
 
-    <ul id="rekapList" style="text-align:left; max-height:300px; overflow-y:auto; font-size:16px;"></ul>
+    <!-- 🎯 Grafik Estetis -->
+    <canvas id="chartHadir"></canvas>
+    <div id="infoKuota"></div>
+
+    <button id="adminLoginBtn" onclick="adminLogin()" 
+    style="background:#064d06; margin-top:15px;">Login Admin</button>
+
+    <div id="adminTools" class="admin-bar" style="display:none;">
+      MODE ADMIN AKTIF – Anda bisa menghapus data
+    </div>
+
+    <ul id="rekapList" style="text-align:left; max-height:300px; overflow-y:auto;"></ul>
   </div>
 
-  <script>
-    // --- Storage & reset logic ---
-    let rekap = JSON.parse(localStorage.getItem('rekap')) || [];
-    const lastReset = localStorage.getItem('lastReset');
-    const nowDay = new Date().toISOString().slice(0,10);
+<script>
+  let rekap = JSON.parse(localStorage.getItem("rekap") || "[]");
+  const ADMIN_PASS = "admin123";
+  let adminMode = false;
 
-    if (!lastReset) {
-      localStorage.setItem('lastReset', nowDay);
+  function escapeHtml(text){
+    return String(text).replace(/[&<>"]/g, function(tag){
+      const chars = { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" };
+      return chars[tag] || tag;
+    });
+  }
+
+  /* ------------------ RENDER REKAP ------------------ */
+  function updateRekap(){
+    const list = document.getElementById("rekapList");
+    list.innerHTML = "";
+    rekap.forEach((item, i)=>{
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <div id="view-${i}">
+          <b>${i+1}.</b> ${escapeHtml(item.nama)}
+          <div style="font-size:14px;">Koordinator: ${escapeHtml(item.koordinator)}</div>
+          <div style="font-size:12px;">${item.tanggal} - ${item.jam}</div>
+          <button class="small-btn" onclick="startEdit(${i})">Edit</button>
+          <button class="small-btn btn-delete" id="del-${i}" onclick="adminDelete(${i})">Hapus</button>
+        </div>
+
+        <div id="edit-${i}" style="display:none;">
+          <input id="editNama-${i}" value="${escapeHtml(item.nama)}">
+          <input id="editKoor-${i}" value="${escapeHtml(item.koordinator)}">
+          <button class="small-btn" onclick="saveEdit(${i})">Save</button>
+          <button class="small-btn" onclick="cancelEdit(${i})">Cancel</button>
+        </div>
+      `;
+      list.appendChild(li);
+    });
+
+    localStorage.setItem("rekap", JSON.stringify(rekap));
+
+    if(adminMode){
+      document.getElementById("adminTools").style.display = "block";
+      document.querySelectorAll('[id^="del-"]').forEach(b=>b.style.display="inline-block");
     } else {
-      const diff = (new Date(nowDay) - new Date(lastReset)) / (1000*60*60*24);
-      if (diff >= 3) {
-        rekap = [];
-        localStorage.setItem('rekap', JSON.stringify(rekap));
-        localStorage.setItem('lastReset', nowDay);
-      }
+      document.getElementById("adminTools").style.display = "none";
+      document.querySelectorAll('[id^="del-"]').forEach(b=>b.style.display="none");
     }
 
-    const ADMIN_PASS = "admin123"; // ganti jika diperlukan
-    let adminMode = false;
-
-    // --- Helpers ---
-    function escapeHtml(text) {
-      return String(text)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-
-    // --- Render list ---
-    function updateRekap() {
-      const list = document.getElementById('rekapList');
-      list.innerHTML = "";
-      rekap.forEach((item, index) => {
-        const li = document.createElement('li');
-        li.innerHTML = `
-          <div id="view-${index}">
-            <div><b>${index + 1}.</b> ${escapeHtml(item.nama)}</div>
-            <div style='font-size:14px; color:#064d06;'>Koordinator: ${escapeHtml(item.koordinator)}</div>
-            <div style='font-size:13px; color:#2a7a2a;'>Tanggal: ${item.tanggal} | Jam: ${item.jam}</div>
-            <button class="small-btn" onclick="startEdit(${index})">Edit</button>
-            <button class="small-btn btn-delete" id="del-${index}" onclick="adminDelete(${index})""display:none; margin-left:5px;">Hapus</button>
-          </div>
-
-          <div id="edit-${index}" style="display:none;">
-            <input id="editNama-${index}" type="text" value="${escapeHtml(item.nama)}" style="width:90%; margin:5px 0;">
-            <input id="editKoor-${index}" type="text" value="${escapeHtml(item.koordinator)}" style="width:90%; margin:5px 0;">
-            <button class="small-btn" onclick="saveEdit(${index})">Save</button>
-            <button class="small-btn" onclick="cancelEdit(${index})">Cancel</button>
-          </div>
-        `;
-        list.appendChild(li);
-      });
-
-      // simpan ke localStorage
-      localStorage.setItem('rekap', JSON.stringify(rekap));
-
-      // jika admin mode, tampilkan tombol hapus
-      if (adminMode) {
-        document.getElementById('adminTools').style.display = 'block';
-        Array.from(document.querySelectorAll('[id^="del-"]')).forEach(btn => btn.style.display = 'inline-block');
-      } else {
-        document.getElementById('adminTools').style.display = 'none';
-        Array.from(document.querySelectorAll('[id^="del-"]')).forEach(btn => btn.style.display = 'none');
-      }
-    }
-
-    // --- Edit flow (inline) ---
-    function startEdit(i) {
-      const view = document.getElementById(`view-${i}`);
-      const edit = document.getElementById(`edit-${i}`);
-      if (!view || !edit) return;
-      view.style.display = 'none';
-      edit.style.display = 'block';
-    }
-
-    function saveEdit(i) {
-      const newNama = document.getElementById(`editNama-${i}`).value.trim();
-      const newKoor = document.getElementById(`editKoor-${i}`).value.trim();
-      if (newNama) rekap[i].nama = newNama;
-      if (newKoor) rekap[i].koordinator = newKoor;
-      updateRekap();
     renderChart();
-    }
+  }
 
-    function cancelEdit(i) {
-      const view = document.getElementById(`view-${i}`);
-      const edit = document.getElementById(`edit-${i}`);
-      if (!view || !edit) return;
-      view.style.display = 'block';
-      edit.style.display = 'none';
-    }
-
-    // --- Admin actions ---
-    function adminLogin() {
-      const pass = prompt('Masukkan password admin:');
-      if (pass === ADMIN_PASS) {
-        adminMode = true;
-        alert('Admin login berhasil');
-        updateRekap();
-      } else {
-        alert('Password salah!');
-      }
-    }
-
-    function adminDelete(i) {
-      if (!adminMode) return alert('Anda belum login sebagai admin!');
-      if (confirm('Yakin ingin menghapus data ini?')) {
-        rekap.splice(i, 1);
-        updateRekap();
-      }
-    }
-
-    // --- Actions ---
-    function tandaiHadir() {
-      const nama = document.getElementById('inputNama').value.trim() || "(Nama kosong)";
-      const koordinator = document.getElementById('inputKoordinator').value.trim() || "(Koordinator kosong)";
-      const now = new Date();
-      const tanggal = now.toLocaleDateString('id-ID');
-      const jam = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-
-      document.getElementById('hasil').innerHTML = `<div style="margin-top:10px;">
-        <div style='font-size:20px; color:#026902; font-weight:600;'>${escapeHtml(nama)}</div>
-        <div style='margin-top:6px;'>Tanggal: <b>${tanggal}</b></div>
-        <div>Jam: <b>${jam}</b></div>
-        <div style='margin-top:6px; font-size:14px; color:#024b02;'>Koordinator: ${escapeHtml(koordinator)}</div>
-      </div>`;
-
-      if (rekap.length < 100) {
-        rekap.push({ nama, koordinator, tanggal, jam });
-        updateRekap();
-      } else {
-        alert("Batas maksimal 100 peserta telah tercapai!");
-      }
-
-      // bersihkan input setelah submit (opsional)
-      document.getElementById('inputNama').value = '';
-    }
-
-    // ---- Grafik Kehadiran ----
-    let chartInstance = null;
-    function renderChart(){
-      const ctx = document.getElementById('chartHadir');
-      if(!ctx) return;
-      const total = rekap.length;
-      if(chartInstance) chartInstance.destroy();
-      chartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: ['Hadir'],
-          datasets: [{ data: [total], backgroundColor: ['#1fa71f'] }]
-        },
-        options: {
-          plugins:{ legend:{ display:false }},
-          cutout:'70%'
-        }
-      });
-    }
-
-    // inisialisasi render
+  /* ------------------ EDIT ------------------ */
+  function startEdit(i){
+    document.getElementById(`view-${i}`).style.display="none";
+    document.getElementById(`edit-${i}`).style.display="block";
+  }
+  function saveEdit(i){
+    rekap[i].nama = document.getElementById(`editNama-${i}`).value;
+    rekap[i].koordinator = document.getElementById(`editKoor-${i}`).value;
     updateRekap();
-  </script>
+  }
+  function cancelEdit(i){
+    document.getElementById(`view-${i}`).style.display="block";
+    document.getElementById(`edit-${i}`).style.display="none";
+  }
+
+  /* ------------------ ADMIN ------------------ */
+  function adminLogin(){
+    const pass = prompt("Masukkan password admin:");
+    if(pass === ADMIN_PASS){
+      adminMode = true;
+      alert("Login berhasil");
+      updateRekap();
+    } else {
+      alert("Password salah!");
+    }
+  }
+
+  function adminDelete(i){
+    if(!adminMode) return alert("Belum login admin!");
+    if(confirm("Yakin hapus?")){
+      rekap.splice(i,1);
+      updateRekap();
+    }
+  }
+
+  /* ------------------ TAMBAH HADIR ------------------ */
+  function tandaiHadir(){
+    const nama = document.getElementById("inputNama").value.trim();
+    const koor = document.getElementById("inputKoordinator").value.trim();
+    const now = new Date();
+
+    if(nama === "") return alert("Nama wajib diisi!");
+    if(rekap.length >= 50) return alert("Kuota penuh! Maksimal 50 orang.");
+
+    rekap.push({
+      nama,
+      koordinator: koor || "(kosong)",
+      tanggal: now.toLocaleDateString("id-ID"),
+      jam: now.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})
+    });
+
+    updateRekap();
+    document.getElementById("inputNama").value="";
+  }
+
+  /* ------------------ GRAFIK ESTETIS ------------------ */
+  let chart = null;
+
+  function getColor(total){
+    if (total <= 20) return "#1fc75b";  // hijau
+    if (total <= 35) return "#ffd33d";  // kuning
+    if (total <= 45) return "#ff9432";  // oranye
+    return "#ff3b3b";                   // merah penuh
+  }
+
+  function renderChart(){
+    const total = rekap.length;
+    const sisa = 50 - total;
+
+    document.getElementById("infoKuota").innerHTML =
+      `Hadir <b>${total}</b> dari <b>50</b> — Sisa kuota: <b>${sisa}</b>`;
+
+    const ctx = document.getElementById("chartHadir");
+
+    if(chart) chart.destroy();
+
+    chart = new Chart(ctx,{
+      type:"doughnut",
+      data:{
+        labels:["Hadir","Sisa"],
+        datasets:[{
+          data:[total, 50-total],
+          backgroundColor:[getColor(total), "#e8e8e8"],
+          borderWidth:0,
+          hoverOffset:8
+        }]
+      },
+      options:{
+        plugins:{ legend:{ display:false }},
+        cutout:"72%",
+      }
+    });
+  }
+
+  updateRekap();
+</script>
+
 </body>
 </html>
